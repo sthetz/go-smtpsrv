@@ -16,11 +16,13 @@ import (
 	"golang.org/x/text/encoding/charmap"
 )
 
-const contentTypeMultipartMixed = "multipart/mixed"
-const contentTypeMultipartAlternative = "multipart/alternative"
-const contentTypeMultipartRelated = "multipart/related"
-const contentTypeTextHtml = "text/html"
-const contentTypeTextPlain = "text/plain"
+const (
+	contentTypeMultipartMixed       = "multipart/mixed"
+	contentTypeMultipartAlternative = "multipart/alternative"
+	contentTypeMultipartRelated     = "multipart/related"
+	contentTypeTextHtml             = "text/html"
+	contentTypeTextPlain            = "text/plain"
+)
 
 // Parse an email message read from io.Reader into parsemail.Email struct
 func ParseEmail(r io.Reader) (email *Email, err error) {
@@ -39,7 +41,6 @@ func ParseEmail(r io.Reader) (email *Email, err error) {
 	if err != nil {
 		return
 	}
-
 
 	switch contentType {
 	case contentTypeMultipartMixed:
@@ -103,8 +104,8 @@ func createEmailFromHeader(header mail.Header) (email *Email, err error) {
 		return
 	}
 
-	//decode whole header for easier access to extra fields
-	//todo: should we decode? aren't only standard fields mime encoded?
+	// decode whole header for easier access to extra fields
+	// todo: should we decode? aren't only standard fields mime encoded?
 	email.Header, err = decodeHeaderMime(header)
 	if err != nil {
 		return
@@ -179,8 +180,7 @@ func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody s
 	return textBody, htmlBody, embeddedFiles, err
 }
 
-func decodeCharset(content io.Reader, contentTypeWithCharset string) (io.Reader) {
-
+func decodeCharset(content io.Reader, contentTypeWithCharset string) io.Reader {
 	charset := "default"
 	if strings.Contains(contentTypeWithCharset, "; charset=") {
 		split := strings.Split(contentTypeWithCharset, "; charset=")
@@ -409,7 +409,6 @@ func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 }
 
 func decodeContent(content io.Reader, encoding string, contentTypeWithCharset string) (io.Reader, error) {
-
 	switch encoding {
 	case "base64":
 		decoded := base64.NewDecoder(base64.StdEncoding, content)
@@ -420,7 +419,7 @@ func decodeContent(content io.Reader, encoding string, contentTypeWithCharset st
 
 		return decodeCharset(bytes.NewReader(b), contentTypeWithCharset), nil
 
-	case "7bit":
+	case "7bit", "8bit":
 		dd, err := ioutil.ReadAll(content)
 		if err != nil {
 			return nil, err
