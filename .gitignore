@@ -24,3 +24,7 @@ _testmain.go
 *.prof
 
 vendor
+/.idea/.gitignore
+/.idea/go-smtpsrv.iml
+/.idea/modules.xml
+/.idea/vcs.xml

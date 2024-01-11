@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
@@ -55,7 +54,7 @@ func ParseEmail(r io.Reader) (email *Email, err error) {
 			return email, err
 		}
 
-		message, _ := ioutil.ReadAll(newPart)
+		message, _ := io.ReadAll(newPart)
 		email.TextBody = strings.TrimSuffix(string(message[:]), "\n")
 	case contentTypeTextHtml:
 		newPart, err := decodeContent(msg.Body, msg.Header.Get("Content-Transfer-Encoding"), msg.Header.Get("Content-Type"))
@@ -63,7 +62,7 @@ func ParseEmail(r io.Reader) (email *Email, err error) {
 			return email, err
 		}
 
-		message, err := ioutil.ReadAll(newPart)
+		message, err := io.ReadAll(newPart)
 		if err != nil {
 			return email, err
 		}
@@ -141,14 +140,14 @@ func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody s
 
 		switch contentType {
 		case contentTypeTextPlain:
-			ppContent, err := ioutil.ReadAll(part)
+			ppContent, err := io.ReadAll(part)
 			if err != nil {
 				return textBody, htmlBody, embeddedFiles, err
 			}
 
 			textBody += strings.TrimSuffix(string(ppContent[:]), "\n")
 		case contentTypeTextHtml:
-			ppContent, err := ioutil.ReadAll(part)
+			ppContent, err := io.ReadAll(part)
 			if err != nil {
 				return textBody, htmlBody, embeddedFiles, err
 			}
@@ -224,7 +223,7 @@ func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBo
 				return textBody, htmlBody, embeddedFiles, err
 			}
 
-			ppContent, err := ioutil.ReadAll(newPart)
+			ppContent, err := io.ReadAll(newPart)
 			if err != nil {
 				return textBody, htmlBody, embeddedFiles, err
 			}
@@ -237,7 +236,7 @@ func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBo
 				return textBody, htmlBody, embeddedFiles, err
 			}
 
-			ppContent, err := ioutil.ReadAll(newPart)
+			ppContent, err := io.ReadAll(newPart)
 			if err != nil {
 				return textBody, htmlBody, embeddedFiles, err
 			}
@@ -302,7 +301,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 				return textBody, htmlBody, attachments, embeddedFiles, err
 			}
 
-			ppContent, err := ioutil.ReadAll(newPart)
+			ppContent, err := io.ReadAll(newPart)
 			if err != nil {
 				return textBody, htmlBody, attachments, embeddedFiles, err
 			}
@@ -314,7 +313,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 				return textBody, htmlBody, attachments, embeddedFiles, err
 			}
 
-			ppContent, err := ioutil.ReadAll(newPart)
+			ppContent, err := io.ReadAll(newPart)
 			if err != nil {
 				return textBody, htmlBody, attachments, embeddedFiles, err
 			}
@@ -412,7 +411,7 @@ func decodeContent(content io.Reader, encoding string, contentTypeWithCharset st
 	switch encoding {
 	case "base64":
 		decoded := base64.NewDecoder(base64.StdEncoding, content)
-		b, err := ioutil.ReadAll(decoded)
+		b, err := io.ReadAll(decoded)
 		if err != nil {
 			return nil, err
 		}
@@ -420,7 +419,7 @@ func decodeContent(content io.Reader, encoding string, contentTypeWithCharset st
 		return decodeCharset(bytes.NewReader(b), contentTypeWithCharset), nil
 
 	case "7bit", "8bit":
-		dd, err := ioutil.ReadAll(content)
+		dd, err := io.ReadAll(content)
 		if err != nil {
 			return nil, err
 		}
@@ -429,13 +428,20 @@ func decodeContent(content io.Reader, encoding string, contentTypeWithCharset st
 
 	case "quoted-printable":
 		decoded := quotedprintable.NewReader(content)
-		b, err := ioutil.ReadAll(decoded)
+		b, err := io.ReadAll(decoded)
 		if err != nil {
 			return nil, err
 		}
 
 		return decodeCharset(bytes.NewReader(b), contentTypeWithCharset), nil
+	case "koi8-r":
+		decoded := charmap.KOI8R.NewDecoder().Reader(content)
+		b, err := io.ReadAll(decoded)
+		if err != nil {
+			return nil, err
+		}
 
+		return decodeCharset(bytes.NewReader(b), contentTypeWithCharset), nil
 	case "":
 		return decodeCharset(content, contentTypeWithCharset), nil
 
