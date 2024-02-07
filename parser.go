@@ -319,7 +319,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 			}
 
 			htmlBody += strings.TrimSuffix(string(ppContent[:]), "\n")
-		} else if isAttachment(part) {
+		} else if isAttachment(part, contentType) {
 			at, err := decodeAttachment(part)
 			if err != nil {
 				return textBody, htmlBody, attachments, embeddedFiles, err
@@ -389,12 +389,15 @@ func decodeEmbeddedFile(part *multipart.Part) (ef EmbeddedFile, err error) {
 	return
 }
 
-func isAttachment(part *multipart.Part) bool {
-	return part.FileName() != ""
+func isAttachment(part *multipart.Part, contentType string) bool {
+	return part.FileName() != "" || contentType == "application/octet-stream"
 }
 
 func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 	filename := decodeMimeSentence(part.FileName())
+	if filename == "" {
+		filename = fmt.Sprintf("attachment-%d", time.Now().UnixNano())
+	}
 	decoded, err := decodeContent(part, part.Header.Get("Content-Transfer-Encoding"), part.Header.Get("Content-Type"))
 	if err != nil {
 		return
@@ -403,6 +406,15 @@ func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 	at.Filename = filename
 	at.Data = decoded
 	at.ContentType = strings.Split(part.Header.Get("Content-Type"), ";")[0]
+
+	if at.ContentType == "application/octet-stream" {
+		data, err := io.ReadAll(part)
+		if err != nil {
+			return at, err
+		}
+
+		at.Data = bytes.NewReader(data)
+	}
 
 	return
 }
