@@ -23,7 +23,7 @@ const (
 	contentTypeTextPlain            = "text/plain"
 )
 
-// Parse an email message read from io.Reader into parsemail.Email struct
+// ParseEmail Parse an email message read from io.Reader into parsemail.Email struct
 func ParseEmail(r io.Reader) (email *Email, err error) {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {

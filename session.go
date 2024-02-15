@@ -10,30 +10,36 @@ import (
 
 // A Session is returned after successful login.
 type Session struct {
-	connState *smtp.ConnectionState
-	From      *mail.Address
-	To        *mail.Address
-	handler   HandlerFunc
-	body      io.Reader
-	username  *string
-	password  *string
+	conn     *smtp.Conn
+	From     *mail.Address
+	To       *mail.Address
+	handler  HandlerFunc
+	body     io.Reader
+	username *string
+	password *string
 }
 
 // NewSession initialize a new session
-func NewSession(state *smtp.ConnectionState, handler HandlerFunc, username, password *string) *Session {
+func NewSession(conn *smtp.Conn, handler HandlerFunc) *Session {
 	return &Session{
-		connState: state,
-		handler:   handler,
+		conn:    conn,
+		handler: handler,
 	}
 }
 
-func (s *Session) Mail(from string, opts smtp.MailOptions) (err error) {
-	s.From, err = mail.ParseAddress(from)
+func (s *Session) AuthPlain(username, password string) (err error) {
+	s.username = &username
+	s.password = &password
 	return
 }
 
-func (s *Session) Rcpt(to string) (err error) {
+func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) (err error) {
 	s.To, err = mail.ParseAddress(to)
+	return
+}
+
+func (s *Session) Mail(from string, opts *smtp.MailOptions) (err error) {
+	s.From, err = mail.ParseAddress(from)
 	return
 }
 
