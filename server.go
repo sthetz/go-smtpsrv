@@ -19,10 +19,12 @@ type ServerConfig struct {
 	TLSConfig       *tls.Config
 }
 
-func ListenAndServe(cfg *ServerConfig) error {
-	s := smtp.NewServer(NewBackend(cfg.Auther, cfg.Handler))
+type Server struct {
+	*smtp.Server
+}
 
-	SetDefaultServerConfig(cfg)
+func NewServer(cfg *ServerConfig) *Server {
+	s := smtp.NewServer(NewBackend(cfg.Auther, cfg.Handler))
 
 	s.Addr = cfg.ListenAddr
 	s.Domain = cfg.BannerDomain
@@ -33,15 +35,11 @@ func ListenAndServe(cfg *ServerConfig) error {
 	s.AuthDisabled = true
 	s.EnableSMTPUTF8 = false
 
-	fmt.Println("⇨ smtp server started on", s.Addr)
-
-	return s.ListenAndServe()
+	return &Server{s}
 }
 
-func ListenAndServeTLS(cfg *ServerConfig) error {
+func NewServerTLS(cfg *ServerConfig) *Server {
 	s := smtp.NewServer(NewBackend(cfg.Auther, cfg.Handler))
-
-	SetDefaultServerConfig(cfg)
 
 	s.Addr = cfg.ListenAddr
 	s.Domain = cfg.BannerDomain
@@ -54,7 +52,22 @@ func ListenAndServeTLS(cfg *ServerConfig) error {
 	s.EnableREQUIRETLS = true
 	s.TLSConfig = cfg.TLSConfig
 
-	fmt.Println("⇨ smtp server started on", s.Addr)
+	return &Server{s}
 
-	return s.ListenAndServeTLS()
+}
+func (s *Server) ListenAndServe() error {
+	fmt.Println("⇨ smtp server started on", s.Addr)
+	return s.Server.ListenAndServe()
+
+}
+
+func (s *Server) ListenAndServeTLS() error {
+	fmt.Println("⇨ smtp server started on", s.Addr)
+	return s.Server.ListenAndServeTLS()
+
+}
+
+func (s *Server) Close() error {
+	fmt.Println("⇨ smtp server stopped")
+	return s.Server.Close()
 }
