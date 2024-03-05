@@ -119,7 +119,7 @@ func parseContentType(contentTypeHeader string) (contentType string, params map[
 		return
 	}
 
-	mediaType, params, err := mime.ParseMediaType(contentTypeHeader)
+	mediaType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(contentTypeHeader))
 	if err != nil {
 		err = fmt.Errorf("error parsing media type from content type header %s: %s", contentTypeHeader, err)
 	}
@@ -138,7 +138,7 @@ func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody s
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
 			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, embeddedFiles, err
@@ -217,7 +217,7 @@ func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBo
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
 			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, embeddedFiles, err
@@ -287,7 +287,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 			return textBody, htmlBody, attachments, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
 			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, attachments, embeddedFiles, err
@@ -544,6 +544,33 @@ func (hp headerParser) parseMessageIdList(s string) (result []string) {
 	}
 
 	return
+}
+
+// sanitizeContentTypeHeader removes duplicate parameters from the content type header if they are equal in lowercase
+// and with or without quotes e.g. text/html; charset=utf-8; charset="UTF-8" -> text/html; charset=utf-8
+func sanitizeContentTypeHeader(contentType string) string {
+	params := strings.Split(contentType, ";")
+	seen := make(map[string]struct{}, len(params))
+	result := make([]string, 0, len(params))
+	for _, p := range params {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		if strings.Contains(p, "=") {
+			split := strings.Split(p, "=")
+			if _, ok := seen[strings.ToLower(split[0])]; ok {
+				continue
+			}
+
+			seen[strings.ToLower(split[0])] = struct{}{}
+		}
+
+		result = append(result, p)
+	}
+
+	return strings.Join(result, "; ")
 }
 
 // Attachment with filename, content type and data (as an io.Reader)
