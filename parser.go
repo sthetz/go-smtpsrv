@@ -23,7 +23,7 @@ const (
 	contentTypeTextPlain            = "text/plain"
 )
 
-// Parse an email message read from io.Reader into parsemail.Email struct
+// ParseEmail Parse an email message read from io.Reader into parsemail.Email struct
 func ParseEmail(r io.Reader) (email *Email, err error) {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {
@@ -119,7 +119,12 @@ func parseContentType(contentTypeHeader string) (contentType string, params map[
 		return
 	}
 
-	return mime.ParseMediaType(contentTypeHeader)
+	mediaType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(contentTypeHeader))
+	if err != nil {
+		err = fmt.Errorf("error parsing media type from content type header %s: %s", contentTypeHeader, err)
+	}
+
+	return mediaType, params, err
 }
 
 func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody string, embeddedFiles []EmbeddedFile, err error) {
@@ -133,8 +138,9 @@ func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody s
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
+			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
@@ -171,7 +177,7 @@ func parseMultipartRelated(msg io.Reader, boundary string) (textBody, htmlBody s
 
 				embeddedFiles = append(embeddedFiles, ef)
 			} else {
-				return textBody, htmlBody, embeddedFiles, fmt.Errorf("Can't process multipart/related inner mime type: %s", contentType)
+				return textBody, htmlBody, embeddedFiles, fmt.Errorf("can't process multipart/related inner mime type: %s", contentType)
 			}
 		}
 	}
@@ -211,8 +217,9 @@ func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBo
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
+			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, embeddedFiles, err
 		}
 
@@ -262,7 +269,7 @@ func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBo
 
 				embeddedFiles = append(embeddedFiles, ef)
 			} else {
-				return textBody, htmlBody, embeddedFiles, fmt.Errorf("Can't process multipart/alternative inner mime type: %s", contentType)
+				return textBody, htmlBody, embeddedFiles, fmt.Errorf("can't process multipart/alternative inner mime type: %s", contentType)
 			}
 		}
 	}
@@ -280,8 +287,9 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 			return textBody, htmlBody, attachments, embeddedFiles, err
 		}
 
-		contentType, params, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		contentType, params, err := mime.ParseMediaType(sanitizeContentTypeHeader(part.Header.Get("Content-Type")))
 		if err != nil {
+			err = fmt.Errorf("error parsing media type from content type header %s: %s", part.Header.Get("Content-Type"), err)
 			return textBody, htmlBody, attachments, embeddedFiles, err
 		}
 
@@ -319,7 +327,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 			}
 
 			htmlBody += strings.TrimSuffix(string(ppContent[:]), "\n")
-		} else if isAttachment(part) {
+		} else if isAttachment(part, contentType) {
 			at, err := decodeAttachment(part)
 			if err != nil {
 				return textBody, htmlBody, attachments, embeddedFiles, err
@@ -327,7 +335,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 
 			attachments = append(attachments, at)
 		} else {
-			return textBody, htmlBody, attachments, embeddedFiles, fmt.Errorf("Unknown multipart/mixed nested mime type: %s", contentType)
+			return textBody, htmlBody, attachments, embeddedFiles, fmt.Errorf("unknown multipart/mixed nested mime type: %s", contentType)
 		}
 	}
 
@@ -335,7 +343,7 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 }
 
 func decodeMimeSentence(s string) string {
-	result := []string{}
+	var result []string
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
@@ -360,7 +368,7 @@ func decodeHeaderMime(header mail.Header) (mail.Header, error) {
 
 	for headerName, headerData := range header {
 
-		parsedHeaderData := []string{}
+		var parsedHeaderData []string
 		for _, headerValue := range headerData {
 			parsedHeaderData = append(parsedHeaderData, decodeMimeSentence(headerValue))
 		}
@@ -368,7 +376,7 @@ func decodeHeaderMime(header mail.Header) (mail.Header, error) {
 		parsedHeader[headerName] = parsedHeaderData
 	}
 
-	return mail.Header(parsedHeader), nil
+	return parsedHeader, nil
 }
 
 func isEmbeddedFile(part *multipart.Part) bool {
@@ -389,12 +397,15 @@ func decodeEmbeddedFile(part *multipart.Part) (ef EmbeddedFile, err error) {
 	return
 }
 
-func isAttachment(part *multipart.Part) bool {
-	return part.FileName() != ""
+func isAttachment(part *multipart.Part, contentType string) bool {
+	return part.FileName() != "" || contentType == "application/octet-stream"
 }
 
 func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 	filename := decodeMimeSentence(part.FileName())
+	if filename == "" {
+		filename = fmt.Sprintf("attachment-%d", time.Now().UnixNano())
+	}
 	decoded, err := decodeContent(part, part.Header.Get("Content-Transfer-Encoding"), part.Header.Get("Content-Type"))
 	if err != nil {
 		return
@@ -403,6 +414,15 @@ func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 	at.Filename = filename
 	at.Data = decoded
 	at.ContentType = strings.Split(part.Header.Get("Content-Type"), ";")[0]
+
+	if at.ContentType == "application/octet-stream" {
+		data, err := io.ReadAll(part)
+		if err != nil {
+			return at, err
+		}
+
+		at.Data = bytes.NewReader(data)
+	}
 
 	return
 }
@@ -526,21 +546,48 @@ func (hp headerParser) parseMessageIdList(s string) (result []string) {
 	return
 }
 
-// Attachment with filename, content type and data (as a io.Reader)
+// sanitizeContentTypeHeader removes duplicate parameters from the content type header if they are equal in lowercase
+// and with or without quotes e.g. text/html; charset=utf-8; charset="UTF-8" -> text/html; charset=utf-8
+func sanitizeContentTypeHeader(contentType string) string {
+	params := strings.Split(contentType, ";")
+	seen := make(map[string]struct{}, len(params))
+	result := make([]string, 0, len(params))
+	for _, p := range params {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+
+		if strings.Contains(p, "=") {
+			split := strings.Split(p, "=")
+			if _, ok := seen[strings.ToLower(split[0])]; ok {
+				continue
+			}
+
+			seen[strings.ToLower(split[0])] = struct{}{}
+		}
+
+		result = append(result, p)
+	}
+
+	return strings.Join(result, "; ")
+}
+
+// Attachment with filename, content type and data (as an io.Reader)
 type Attachment struct {
 	Filename    string
 	ContentType string
 	Data        io.Reader
 }
 
-// EmbeddedFile with content id, content type and data (as a io.Reader)
+// EmbeddedFile with content id, content type and data (as an io.Reader)
 type EmbeddedFile struct {
 	CID         string
 	ContentType string
 	Data        io.Reader
 }
 
-// Email with fields for all the headers defined in RFC5322 with it's attachments and
+// Email with fields for all the headers defined in RFC5322 with its attachments and embedded files
 type Email struct {
 	Header mail.Header
 

@@ -29,11 +29,16 @@ func (c Context) User() (string, string, error) {
 }
 
 func (c Context) RemoteAddr() net.Addr {
-	return c.session.connState.RemoteAddr
+	return c.session.conn.Conn().RemoteAddr()
 }
 
 func (c Context) TLS() *tls.ConnectionState {
-	return &c.session.connState.TLS
+	state, ok := c.session.conn.TLSConnectionState()
+	if !ok {
+		return nil
+	}
+
+	return &state
 }
 
 func (c Context) Read(p []byte) (int, error) {
