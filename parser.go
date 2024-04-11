@@ -189,21 +189,23 @@ func decodeCharset(content io.Reader, contentTypeWithCharset string) io.Reader {
 	charset := "default"
 	if strings.Contains(contentTypeWithCharset, "; charset=") {
 		split := strings.Split(contentTypeWithCharset, "; charset=")
-		charset = strings.Trim(split[1], " \"'\n\r")
+		charset = strings.ToLower(strings.Trim(split[1], " \"'\n\r"))
 	}
 
-	tr := content
+	decoders := map[string]*charmap.Charmap{
+		"windows-1252": charmap.Windows1252,
+		"iso-8859-1":   charmap.ISO8859_1,
+		"koi8-r":       charmap.KOI8R,
+		"windows-1251": charmap.Windows1251,
+	}
+
 	if charset != "default" {
-		switch charset {
-		case "Windows-1252":
-			tr = charmap.Windows1252.NewDecoder().Reader(content)
-		case "iso-8859-1", "ISO-8859-1":
-			tr = charmap.ISO8859_1.NewDecoder().Reader(content)
-		default:
+		if decoder, ok := decoders[charset]; ok {
+			return decoder.NewDecoder().Reader(content)
 		}
 	}
 
-	return tr
+	return content
 }
 
 func parseMultipartAlternative(msg io.Reader, boundary string) (textBody, htmlBody string, embeddedFiles []EmbeddedFile, err error) {
@@ -428,7 +430,7 @@ func decodeAttachment(part *multipart.Part) (at Attachment, err error) {
 }
 
 func decodeContent(content io.Reader, encoding string, contentTypeWithCharset string) (io.Reader, error) {
-	switch encoding {
+	switch strings.ToLower(encoding) {
 	case "base64":
 		decoded := base64.NewDecoder(base64.StdEncoding, content)
 		b, err := io.ReadAll(decoded)
@@ -448,14 +450,6 @@ func decodeContent(content io.Reader, encoding string, contentTypeWithCharset st
 
 	case "quoted-printable":
 		decoded := quotedprintable.NewReader(content)
-		b, err := io.ReadAll(decoded)
-		if err != nil {
-			return nil, err
-		}
-
-		return decodeCharset(bytes.NewReader(b), contentTypeWithCharset), nil
-	case "koi8-r":
-		decoded := charmap.KOI8R.NewDecoder().Reader(content)
 		b, err := io.ReadAll(decoded)
 		if err != nil {
 			return nil, err
