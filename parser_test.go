@@ -128,6 +128,28 @@ func TestParseEmail(t *testing.T) {
 				TextBody:    "тесто тест",
 			},
 		},
+		{
+			name: "Email with KOI8-R subject and base64 encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?KOI8-R?B?79TFzNgg8s/Cyc7Tz84t08nUyQ==?=",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "Отель Робинсон-сити",
+			},
+		},
+		{
+			name: "Email with KOI8-R subject and quoted-printable encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?koi8-r?Q?6=5F=F4=ED=5F15=2E05=2Erar?=",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "6_ТМ_15.05.rar",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -136,6 +158,9 @@ func TestParseEmail(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expected.TextBody, email.TextBody)
+			require.Equal(t, tt.expected.Subject, email.Subject)
+			require.Equal(t, tt.expected.From, email.From)
+			require.Equal(t, tt.expected.To, email.To)
 		})
 	}
 }

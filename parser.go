@@ -346,6 +346,12 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 
 func decodeMimeSentence(s string) string {
 	var result []string
+
+	success, str := decodeKoi8(s)
+	if success {
+		return str
+	}
+
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
@@ -363,6 +369,47 @@ func decodeMimeSentence(s string) string {
 	}
 
 	return strings.Join(result, "")
+}
+
+func decodeKoi8(s string) (bool, string) {   
+	if !(strings.HasPrefix(strings.ToLower(s), "=?koi8-r")) {
+		return false, ""
+	}
+	
+	const prefixLen = 11 // =?KOI8-R?B? or =?KOI8-R?Q?
+	prefix := strings.ToLower(s[0:prefixLen])
+	origin := s[prefixLen:(len(s) - 2)]
+   
+	var decodedOrigin []byte
+	var err error
+   
+	if prefix[prefixLen-2] == 'b' {
+	 	decodedOrigin, err = base64.StdEncoding.DecodeString(origin)
+	 	if err != nil {
+	  		fmt.Println("Decode failed (base64):", origin)
+			return false, ""
+		}
+	} else if prefix[prefixLen-2] == 'q' {
+	 	reader := quotedprintable.NewReader(strings.NewReader(origin))
+	 	decodedOrigin, err = io.ReadAll(reader)
+	 	if err != nil {
+	  		fmt.Println("Decode failed (quoted-printable):", origin)
+			return false, ""
+		}
+	} else {
+		fmt.Println("Unknown encoding", origin)
+		return false, ""
+	}
+   
+	decoder := charmap.KOI8R.NewDecoder()
+	reader := decoder.Reader(strings.NewReader(string(decodedOrigin)))
+	decodedString, err := io.ReadAll(reader)
+	if err != nil {
+		fmt.Println("Decode failed (koi8):", decodedOrigin)
+		return false, ""
+	}
+   
+	return true, string(decodedString)
 }
 
 func decodeHeaderMime(header mail.Header) (mail.Header, error) {
