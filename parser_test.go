@@ -115,7 +115,7 @@ func TestParseEmail(t *testing.T) {
 			name: "Email with UTF-8 charset and quoted-printable encoding",
 			input: "From: sender@example.com\r\n" +
 				"To: recipient@example.com\r\n" +
-				"Subject: =D1=82=D0=B5=D1=81=D1=82=D0=BE =D1=82=D0=B5=D1=81=D1=82=\r\n" +
+				"Subject: Test\r\n" +
 				"Content-Type: text/plain; charset=utf-8\r\n" +
 				"Content-Transfer-Encoding: quoted-printable\r\n" +
 				"\r\n" +
@@ -123,7 +123,7 @@ func TestParseEmail(t *testing.T) {
 			expected: &Email{
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
 				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
-				Subject:     "тесто тест",
+				Subject:     "Test",
 				ContentType: "text/plain; charset=utf-8",
 				TextBody:    "тесто тест",
 			},
@@ -148,6 +148,28 @@ func TestParseEmail(t *testing.T) {
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
 				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
 				Subject:     "6_ТМ_15.05.rar",
+			},
+		},
+		{
+			name: "Email with WINDOWS-1251 subject and base64 encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?Windows-1251?b?z+7k8uLl8Obk5e3o5SDk7vHy4OLq6CDx7u7h+eXt6P8g7eAg4OTw5fEgb3BAbnBwc2Vuc29yLnJ1?=",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "Подтверждение доставки сообщения на адрес op@nppsensor.ru",
+			},
+		},
+		{
+			name: "Email with ISO-8859 subject and base64 encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?ISO-8859-1?q?Caf=E9?=",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "Café",
 			},
 		},
 	}

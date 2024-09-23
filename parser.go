@@ -347,8 +347,10 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 func decodeMimeSentence(s string) string {
 	var result []string
 
-	success, str := decodeKoi8(s)
-	if success {
+	str, err := decodeFromKnownCharsets(s)
+	if err != nil {
+		fmt.Println(err)
+	} else {
 		return str
 	}
 
@@ -371,45 +373,33 @@ func decodeMimeSentence(s string) string {
 	return strings.Join(result, "")
 }
 
-func decodeKoi8(s string) (bool, string) {   
-	if !(strings.HasPrefix(strings.ToLower(s), "=?koi8-r")) {
-		return false, ""
+func decodeFromKnownCharsets(s string) (str string, err error) {   
+	parts := strings.SplitN(s, "?", 5)
+	if len(parts) != 5 {
+		return str, fmt.Errorf("Invalid string format: %s", s)
 	}
 	
-	const prefixLen = 11 // =?KOI8-R?B? or =?KOI8-R?Q?
-	prefix := strings.ToLower(s[0:prefixLen])
-	origin := s[prefixLen:(len(s) - 2)]
-   
-	var decodedOrigin []byte
-	var err error
-   
-	if prefix[prefixLen-2] == 'b' {
-	 	decodedOrigin, err = base64.StdEncoding.DecodeString(origin)
-	 	if err != nil {
-	  		fmt.Println("Decode failed (base64):", origin)
-			return false, ""
-		}
-	} else if prefix[prefixLen-2] == 'q' {
-	 	reader := quotedprintable.NewReader(strings.NewReader(origin))
-	 	decodedOrigin, err = io.ReadAll(reader)
-	 	if err != nil {
-	  		fmt.Println("Decode failed (quoted-printable):", origin)
-			return false, ""
-		}
+	charset := strings.ToLower(parts[1])
+	encoding := strings.ToLower(parts[2])
+	data := strings.NewReader(parts[3])
+
+	if encoding == "b" {
+		encoding = "base64"
+	} else if encoding == "q" {
+		encoding = "quoted-printable"
 	} else {
-		fmt.Println("Unknown encoding", origin)
-		return false, ""
+		return str, fmt.Errorf("Invalid encoding: %s", encoding)
 	}
    
-	decoder := charmap.KOI8R.NewDecoder()
-	reader := decoder.Reader(strings.NewReader(string(decodedOrigin)))
-	decodedString, err := io.ReadAll(reader)
+	result, err := decodeContent(data, encoding, "_; charset=" + charset)
 	if err != nil {
-		fmt.Println("Decode failed (koi8):", decodedOrigin)
-		return false, ""
+		return str, fmt.Errorf("Decode failed: %s", parts[3])
 	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(result)
    
-	return true, string(decodedString)
+	return buf.String(), err
 }
 
 func decodeHeaderMime(header mail.Header) (mail.Header, error) {
