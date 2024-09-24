@@ -346,6 +346,14 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 
 func decodeMimeSentence(s string) string {
 	var result []string
+
+	str, err := decodeFromKnownCharsets(s)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		return str
+	}
+
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
@@ -363,6 +371,35 @@ func decodeMimeSentence(s string) string {
 	}
 
 	return strings.Join(result, "")
+}
+
+func decodeFromKnownCharsets(s string) (str string, err error) {   
+	parts := strings.SplitN(s, "?", 5)
+	if len(parts) != 5 {
+		return str, fmt.Errorf("Invalid string format: %s", s)
+	}
+	
+	charset := strings.ToLower(parts[1])
+	encoding := strings.ToLower(parts[2])
+	data := strings.NewReader(parts[3])
+
+	if encoding == "b" {
+		encoding = "base64"
+	} else if encoding == "q" {
+		encoding = "quoted-printable"
+	} else {
+		return str, fmt.Errorf("Invalid encoding: %s", encoding)
+	}
+   
+	result, err := decodeContent(data, encoding, "_; charset=" + charset)
+	if err != nil {
+		return str, fmt.Errorf("Decode failed: %s", parts[3])
+	}
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(result)
+   
+	return buf.String(), err
 }
 
 func decodeHeaderMime(header mail.Header) (mail.Header, error) {
