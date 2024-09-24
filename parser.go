@@ -347,23 +347,22 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 func decodeMimeSentence(s string) string {
 	var result []string
 
-	str, err := decodeFromKnownCharsets(s)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		return str
-	}
-
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
-		dec := new(mime.WordDecoder)
-		w, err := dec.Decode(word)
+		w, err := decodeFromKnownCharsets(word)
 		if err != nil {
-			if len(result) == 0 {
-				w = word
-			} else {
-				w = " " + word
+			fmt.Println(err)
+			dec := new(mime.WordDecoder)
+			w, err = dec.Decode(word)
+
+			if err != nil {
+				fmt.Println(err)
+				if len(result) == 0 {
+					w = word
+				} else {
+					w = " " + word
+				}
 			}
 		}
 
