@@ -172,6 +172,20 @@ func TestParseEmail(t *testing.T) {
 				Subject:     "Café",
 			},
 		},
+		{
+			name: "Email with multiline UTF-8 subject and base64 encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?UTF-8?B?0JjQodCi0JXQmiDQotCQ0JnQnCDQm9CY0JzQmNCiINCf0J4g0JDQkg==?= " +
+ 						 "=?UTF-8?B?0JjQkNCR0JjQm9CV0KLQkNCcISDQkNCS0JjQkNCR0JjQm9CV0KLQqw==?= " +
+ 						 "=?UTF-8?B?INCQ0J3QndCj0JvQmNCg0J7QktCQ0J3QqyEg0JfQsNGP0LLQutCwOg==?= " +
+						 "=?UTF-8?B?IDIyOTgwMTUyLg==?=",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "ИСТЕК ТАЙМ ЛИМИТ ПО АВИАБИЛЕТАМ! АВИАБИЛЕТЫ АННУЛИРОВАНЫ! Заявка: 22980152.",
+			},
+		},
 	}
 
 	for _, tt := range tests {
