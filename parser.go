@@ -80,10 +80,10 @@ func createEmailFromHeader(header mail.Header) (email *Email, err error) {
 
 	email = &Email{}
 	email.Subject = decodeMimeSentence(header.Get("Subject"))
-	email.From = hp.parseAddressList(header.Get("From"))
+	email.From = hp.parseAddressList(DecodeFromToNames(header.Get("From")))
 	email.Sender = hp.parseAddress(header.Get("Sender"))
 	email.ReplyTo = hp.parseAddressList(header.Get("Reply-To"))
-	email.To = hp.parseAddressList(header.Get("To"))
+	email.To = hp.parseAddressList(DecodeFromToNames(header.Get("To")))
 	email.Cc = hp.parseAddressList(header.Get("Cc"))
 	email.Bcc = hp.parseAddressList(header.Get("Bcc"))
 	email.Date = hp.parseTime(header.Get("Date"))
@@ -350,26 +350,57 @@ func decodeMimeSentence(s string) string {
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
-		w, err := decodeFromKnownCharsets(word)
-		if err != nil {
-			fmt.Println(err)
-			dec := new(mime.WordDecoder)
-			w, err = dec.Decode(word)
-
-			if err != nil {
-				fmt.Println(err)
-				if len(result) == 0 {
-					w = word
-				} else {
-					w = " " + word
-				}
-			}
-		}
-
+		w := decodeMimeWord(word, result)
 		result = append(result, w)
 	}
 
-	return strings.Join(result, "")
+	return strings.TrimSpace(strings.Join(result, ""))
+}
+
+func DecodeFromToNames(s string) string {
+	var result []string
+
+	ss := strings.Split(s, " ")
+
+	for _, word := range ss {
+		w := decodeMimeWord(word, result)
+		if strings.TrimSpace(w) != word {
+			w = "\"" + w + "\""
+		}
+		result = append(result, w)
+	}
+
+	return strings.TrimSpace(strings.Join(result, ""))
+}
+
+func decodeMimeWord(word string, result []string) string {
+	dec := new(mime.WordDecoder)
+	w, err := dec.Decode(word)
+	w2, err2 := decodeFromKnownCharsets(word)
+	reportIfStringsNotTheSame(w, w2, word)
+
+	if err != nil {
+		fmt.Println(err)
+		w = w2
+
+		if err2 != nil {
+			fmt.Println(err2)
+			if len(result) == 0 {
+				w = word
+			} else {
+				w = " " + word + " "
+			}
+		}
+	}
+	return w
+}
+
+func reportIfStringsNotTheSame(s1, s2, origin string) {
+	if s1 != s2 {
+		line := "\n--------------------------------------------------\n"
+		fmt.Println(line, "Decoding not the same! \n Origin:", origin)
+		fmt.Println(" mime.WordDecoder:", s1, ";", "decodeFromKnownCharsets:", s2, line)
+	}
 }
 
 func decodeFromKnownCharsets(s string) (str string, err error) {   
@@ -390,7 +421,7 @@ func decodeFromKnownCharsets(s string) (str string, err error) {
 		return str, fmt.Errorf("Invalid encoding: %s", encoding)
 	}
    
-	result, err := decodeContent(data, encoding, "_; charset=" + charset)
+	result, err := decodeContent(data, encoding, " ; charset=" + charset)
 	if err != nil {
 		return str, fmt.Errorf("Decode failed: %s", parts[3])
 	}
