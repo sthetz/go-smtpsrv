@@ -65,14 +65,14 @@ func TestParseEmail(t *testing.T) {
 			name: "Email with UTF-8 charset",
 			input: "From: sender@example.com\r\n" +
 				"To: recipient@example.com\r\n" +
-				"Subject: Test Email\r\n" +
+				"Subject: Test Email TEST TESt  TeeeeSSSSTT\r\n" +
 				"Content-Type: text/plain; charset=utf-8\r\n" +
 				"\r\n" +
 				"Hello, this is a test email.",
 			expected: &Email{
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
 				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
-				Subject:     "Test Email",
+				Subject:     "Test Email TEST TESt  TeeeeSSSSTT",
 				ContentType: "text/plain; charset=utf-8",
 				TextBody:    "Hello, this is a test email.",
 			},
@@ -153,11 +153,11 @@ func TestParseEmail(t *testing.T) {
 		{
 			name: "Email with WINDOWS-1251 subject and base64 encoding",
 			input: "From: sender@example.com\r\n" +
-				"To: recipient@example.com\r\n" +
+				"To:  =?koi8-r?B?48XO1NIg0M/ExMXS1svJIExldmVsLlRyYXZlbA==?= <partners@level.travel>, \"manager@level.travel\" <manager@level.travel>\r\n" +
 				"Subject: =?Windows-1251?b?z+7k8uLl8Obk5e3o5SDk7vHy4OLq6CDx7u7h+eXt6P8g7eAg4OTw5fEgb3BAbnBwc2Vuc29yLnJ1?=",
 			expected: &Email{
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
-				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				To:          []*mail.Address{{Name: "Центр поддержки Level.Travel", Address: "partners@level.travel"}, {Name: "manager@level.travel", Address: "manager@level.travel"}},
 				Subject:     "Подтверждение доставки сообщения на адрес op@nppsensor.ru",
 			},
 		},
@@ -184,6 +184,19 @@ func TestParseEmail(t *testing.T) {
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
 				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
 				Subject:     "ИСТЕК ТАЙМ ЛИМИТ ПО АВИАБИЛЕТАМ! АВИАБИЛЕТЫ АННУЛИРОВАНЫ! Заявка: 22980152.",
+			},
+		},
+		{
+			name: "Email with multiline UTF-8 subject and quoted-printable encoding",
+			input: "From: sender@example.com\r\n" +
+				"To: recipient@example.com\r\n" +
+				"Subject: =?utf-8?Q?=D0=9D=D0=BE=D0=B2=D1=8B=D0=B9_=D1=81=D1=87?= " +
+ 						 "=?utf-8?Q?=D0=B5=D1=82_=D0=B2?= online " +
+ 						 "=?utf-8?Q?=D0=B7=D0=B0=D0=BA=D0=B0=D0=B7=D0=B5_=E2=84=96?= 1259980",
+			expected: &Email{
+				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
+				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
+				Subject:     "Новый счет в online заказе № 1259980",
 			},
 		},
 	}
