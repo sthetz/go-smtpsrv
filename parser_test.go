@@ -65,14 +65,14 @@ func TestParseEmail(t *testing.T) {
 			name: "Email with UTF-8 charset",
 			input: "From: sender@example.com\r\n" +
 				"To: recipient@example.com\r\n" +
-				"Subject: Test Email\r\n" +
+				"Subject: Test Email TEST TESt  TeeeeSSSSTT\r\n" +
 				"Content-Type: text/plain; charset=utf-8\r\n" +
 				"\r\n" +
 				"Hello, this is a test email.",
 			expected: &Email{
 				From:        []*mail.Address{{Name: "", Address: "sender@example.com"}},
 				To:          []*mail.Address{{Name: "", Address: "recipient@example.com"}},
-				Subject:     "Test Email",
+				Subject:     "Test Email TEST TESt  TeeeeSSSSTT",
 				ContentType: "text/plain; charset=utf-8",
 				TextBody:    "Hello, this is a test email.",
 			},

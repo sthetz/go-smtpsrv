@@ -346,11 +346,14 @@ func parseMultipartMixed(msg io.Reader, boundary string) (textBody, htmlBody str
 
 func decodeMimeSentence(s string) string {
 	var result []string
+	var w string
+
+	failed := false
 
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
-		w := decodeMimeWord(word, result)
+		w, failed = decodeMimeWord(word, result, failed)
 		result = append(result, w)
 	}
 
@@ -359,11 +362,14 @@ func decodeMimeSentence(s string) string {
 
 func DecodeFromToNames(s string) string {
 	var result []string
+	var w string
+
+	failed := false
 
 	ss := strings.Split(s, " ")
 
 	for _, word := range ss {
-		w := decodeMimeWord(word, result)
+		w, failed = decodeMimeWord(word, result, failed)
 		if strings.TrimSpace(w) != word {
 			w = "\"" + w + "\""
 		}
@@ -373,33 +379,37 @@ func DecodeFromToNames(s string) string {
 	return strings.TrimSpace(strings.Join(result, ""))
 }
 
-func decodeMimeWord(word string, result []string) string {
+func decodeMimeWord(word string, result []string, failed bool) (string, bool) {
 	dec := new(mime.WordDecoder)
 	w, err := dec.Decode(word)
 	w2, err2 := decodeFromKnownCharsets(word)
 	reportIfStringsNotTheSame(w, w2, word)
 
 	if err != nil {
-		fmt.Println(err)
 		w = w2
 
 		if err2 != nil {
-			fmt.Println(err2)
 			if len(result) == 0 {
-				w = word
+				return word, true
 			} else {
-				w = " " + word + " "
+				return " " + word, true
 			}
 		}
 	}
-	return w
+
+	if failed {
+		w = " " + w
+	}
+
+	return w, false
 }
 
 func reportIfStringsNotTheSame(s1, s2, origin string) {
 	if s1 != s2 {
 		line := "\n--------------------------------------------------\n"
-		fmt.Println(line, "Decoding not the same! \n Origin:", origin)
-		fmt.Println(" mime.WordDecoder:", s1, ";", "decodeFromKnownCharsets:", s2, line)
+		log := line + " Decoding is not the same! \n Origin: " + origin + "\n"
+		log += " mime.WordDecoder: " + s1 + "; " + "decodeFromKnownCharsets: " + s2 + line
+		fmt.Println(log)
 	}
 }
 
